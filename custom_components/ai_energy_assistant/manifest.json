@@ -3,6 +3,7 @@
     "name": "AI Energy Assistant",
     "version": "1.0.0",
     "documentation": "https://github.com/mujhtech/ai_energy_assistant",
+    "issue_tracker": "https://github.com/mujhtech/ai_energy_assistant/issues",
     "requirements": [
         "httpx>=0.24.0"
     ],
