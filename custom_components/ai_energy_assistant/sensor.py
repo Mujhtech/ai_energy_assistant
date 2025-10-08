@@ -1,5 +1,5 @@
 import logging
-import httpx
+from openai import AsyncOpenAI
 from homeassistant.helpers.entity import Entity
 from homeassistant.helpers.update_coordinator import CoordinatorEntity, DataUpdateCoordinator
 from datetime import timedelta
@@ -23,6 +23,20 @@ class AIEnergyCoordinator(DataUpdateCoordinator):
         self.api_key = api_key
         self.provider = provider
 
+        # Initialize OpenAI client for both providers
+        if provider == "openai":
+            self.client = AsyncOpenAI(api_key=api_key)
+            self.model = "gpt-4o-mini"
+        elif provider == "gemini":
+            self.client = AsyncOpenAI(
+                api_key=api_key,
+                base_url="https://generativelanguage.googleapis.com/v1beta/openai/"
+            )
+            self.model = "gemini-2.0-flash-exp"
+        else:
+            self.client = None
+            self.model = None
+
     async def _async_update_data(self):
         # Example: Gather Home Assistant sensor states
         solar_today = self.hass.states.get("sensor.growatt_solar_energy_today")
@@ -41,30 +55,25 @@ class AIEnergyCoordinator(DataUpdateCoordinator):
         return await self.call_llm(prompt)
 
     async def call_llm(self, prompt: str):
-        headers = {"Authorization": f"Bearer {self.api_key}"}
+        try:
+            if not self.client:
+                return "Provider not supported"
 
-        if self.provider == "gemini":
-            url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent"
-            async with httpx.AsyncClient(timeout=30) as client:
-                resp = await client.post(url, headers={"x-goog-api-key": self.api_key}, json={"contents": [{"parts": [{"text": prompt}]}]})
-                if resp.status_code == 200:
-                    return resp.json().get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "No response")
-                return f"Error: {resp.text}"
-
-        elif self.provider == "openai":
-            url = "https://api.openai.com/v1/chat/completions"
-            payload = {
-                "model": "gpt-4o-mini",
-                "messages": [{"role": "user", "content": prompt}],
-                "temperature": 0.7
-            }
-            async with httpx.AsyncClient(timeout=30) as client:
-                resp = await client.post(url, headers=headers, json=payload)
-                if resp.status_code == 200:
-                    return resp.json()["choices"][0]["message"]["content"]
-                return f"Error: {resp.text}"
-
-        return "Provider not supported"
+            response = await self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "You are an expert energy analyst specializing in solar power systems. Analyze energy data, provide insights on consumption patterns, identify optimization opportunities, and make accurate predictions based on historical trends and current conditions."
+                    },
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.7
+            )
+            return response.choices[0].message.content
+        except Exception as e:
+            _LOGGER.error(f"Error calling {self.provider}: {e}")
+            return f"Error: {str(e)}"
 
 
 class AIEnergyPredictionSensor(CoordinatorEntity, Entity):
