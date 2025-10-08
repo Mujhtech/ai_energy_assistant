@@ -72,7 +72,7 @@ class AIEnergyCoordinator(DataUpdateCoordinator):
         if self.panel_size and self.panel_size > 0:
             system_info = f"\n**System Configuration:**\n- Solar Panel System Size: {self.panel_size} kW\n"
 
-        prompt = f"""Analyze my solar energy system data and provide a concise summary with prediction for tomorrow.
+        prompt = f"""Analyze my solar energy system data and provide a response in JSON format.
 {system_info}
 **Current Data (Today):**
 - Solar Energy Production: {solar_value} kWh
@@ -85,13 +85,22 @@ class AIEnergyCoordinator(DataUpdateCoordinator):
 **Historical Data (Past 7 Days):**
 {history_summary}
 
-Please provide:
-1. Brief analysis of today's performance compared to the past week (2-3 sentences)
-2. Trends and patterns observed (1-2 key insights)
-3. Tomorrow's prediction based on historical trends (1-2 sentences)
-4. One specific actionable recommendation
+Return ONLY a valid JSON object with this exact structure:
+{{
+  "summary": "A brief 2-3 sentence summary suitable for display on a dashboard card (max 250 characters)",
+  "analysis": {{
+    "today_performance": "Analysis of today's performance compared to the past week",
+    "trends": "Key trends and patterns observed",
+    "efficiency": "System efficiency assessment if panel size is known"
+  }},
+  "prediction": {{
+    "tomorrow": "Prediction for tomorrow based on weather and historical data",
+    "confidence": "high/medium/low"
+  }},
+  "recommendation": "One specific actionable recommendation"
+}}
 
-Keep the response under 500 words and focus on actionable insights based on the data trends."""
+Keep all fields concise. The summary field must be under 250 characters for dashboard display."""
 
         return await self.call_llm(prompt)
 
@@ -210,23 +219,27 @@ Keep the response under 500 words and focus on actionable insights based on the 
     async def call_llm(self, prompt: str):
         try:
             if not self.client:
-                return "Provider not supported"
+                return {"error": "Provider not supported"}
 
             response = await self.client.chat.completions.create(
                 model=self.model,
                 messages=[
                     {
                         "role": "system",
-                        "content": "You are an expert energy analyst specializing in solar power systems. Analyze energy data, provide insights on consumption patterns, identify optimization opportunities, and make accurate predictions based on historical trends and current conditions."
+                        "content": "You are an expert energy analyst specializing in solar power systems. Analyze energy data, provide insights on consumption patterns, identify optimization opportunities, and make accurate predictions based on historical trends and current conditions. Always respond with valid JSON only, no markdown formatting or code blocks."
                     },
                     {"role": "user", "content": prompt}
                 ],
-                temperature=0.7
+                temperature=0.7,
+                response_format={"type": "json_object"}
             )
-            return response.choices[0].message.content
+
+            import json
+            result = response.choices[0].message.content
+            return json.loads(result)
         except Exception as e:
             _LOGGER.error(f"Error calling {self.provider}: {e}")
-            return f"Error: {str(e)}"
+            return {"error": str(e)}
 
 
 class AIEnergyPredictionSensor(CoordinatorEntity, Entity):
@@ -239,20 +252,38 @@ class AIEnergyPredictionSensor(CoordinatorEntity, Entity):
     @property
     def state(self):
         """Return a short state summary."""
-        if self.coordinator.data:
-            # Extract first sentence or first 250 chars as state
-            full_text = self.coordinator.data
-            first_sentence = full_text.split('.')[0] if '.' in full_text else full_text[:250]
-            return first_sentence[:250] + "..." if len(first_sentence) > 250 else first_sentence
+        if self.coordinator.data and isinstance(self.coordinator.data, dict):
+            if "error" in self.coordinator.data:
+                return f"Error: {self.coordinator.data['error']}"
+            return self.coordinator.data.get("summary", "No summary available")[:255]
         return "No data"
 
     @property
     def extra_state_attributes(self):
-        """Return the full analysis as an attribute."""
-        if self.coordinator.data:
-            return {
-                "full_analysis": self.coordinator.data,
+        """Return the full analysis as attributes."""
+        if self.coordinator.data and isinstance(self.coordinator.data, dict):
+            attrs = {
                 "provider": self.coordinator.provider,
                 "model": self.coordinator.model,
             }
+
+            # Add analysis details
+            if "analysis" in self.coordinator.data:
+                attrs["today_performance"] = self.coordinator.data["analysis"].get("today_performance", "")
+                attrs["trends"] = self.coordinator.data["analysis"].get("trends", "")
+                attrs["efficiency"] = self.coordinator.data["analysis"].get("efficiency", "")
+
+            # Add prediction
+            if "prediction" in self.coordinator.data:
+                attrs["tomorrow_prediction"] = self.coordinator.data["prediction"].get("tomorrow", "")
+                attrs["confidence"] = self.coordinator.data["prediction"].get("confidence", "")
+
+            # Add recommendation
+            if "recommendation" in self.coordinator.data:
+                attrs["recommendation"] = self.coordinator.data["recommendation"]
+
+            # Store full JSON for advanced users
+            attrs["full_data"] = self.coordinator.data
+
+            return attrs
         return {}

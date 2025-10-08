@@ -52,28 +52,76 @@ Once configured, the integration creates a sensor entity:
 
 - `sensor.ai_energy_prediction` - Displays AI-generated analysis and predictions
 
-### Example Dashboard Card
+### Example Dashboard Cards
 
-To display the full AI analysis, use the `full_analysis` attribute:
-
-```yaml
-type: markdown
-content: |
-  ## AI Energy Assistant
-  {{ state_attr('sensor.ai_energy_prediction', 'full_analysis') }}
-```
-
-Or use a template card:
+#### Simple Summary Card (Mushroom)
 
 ```yaml
 type: custom:mushroom-template-card
 entity: sensor.ai_energy_prediction
 primary: AI Energy Assistant
-secondary: "{{ state_attr('sensor.ai_energy_prediction', 'full_analysis') }}"
-icon: mdi:robot
-icon_color: purple
+secondary: "{{ states('sensor.ai_energy_prediction') }}"
+icon: mdi:solar-power
+icon_color: orange
 multiline_secondary: true
 ```
+
+#### Detailed Analysis Card
+
+```yaml
+type: markdown
+content: |
+  ## 🌞 AI Energy Assistant
+
+  **Summary:** {{ states('sensor.ai_energy_prediction') }}
+
+  ### 📊 Today's Performance
+  {{ state_attr('sensor.ai_energy_prediction', 'today_performance') }}
+
+  ### 📈 Trends
+  {{ state_attr('sensor.ai_energy_prediction', 'trends') }}
+
+  ### 🔮 Tomorrow's Prediction
+  {{ state_attr('sensor.ai_energy_prediction', 'tomorrow_prediction') }}
+  *Confidence: {{ state_attr('sensor.ai_energy_prediction', 'confidence') }}*
+
+  ### 💡 Recommendation
+  {{ state_attr('sensor.ai_energy_prediction', 'recommendation') }}
+```
+
+#### Advanced: Multiple Cards
+
+```yaml
+type: vertical-stack
+cards:
+  - type: custom:mushroom-template-card
+    entity: sensor.ai_energy_prediction
+    primary: Energy Summary
+    secondary: "{{ states('sensor.ai_energy_prediction') }}"
+    icon: mdi:solar-power
+    icon_color: orange
+
+  - type: markdown
+    content: |
+      **Tomorrow:** {{ state_attr('sensor.ai_energy_prediction', 'tomorrow_prediction') }}
+
+      **💡 Tip:** {{ state_attr('sensor.ai_energy_prediction', 'recommendation') }}
+```
+
+### Available Attributes
+
+The sensor provides the following attributes:
+
+- `summary` - Brief overview (displayed as sensor state, max 250 chars)
+- `today_performance` - Analysis of today's performance vs. past week
+- `trends` - Key trends and patterns observed
+- `efficiency` - System efficiency assessment
+- `tomorrow_prediction` - Prediction for tomorrow
+- `confidence` - Prediction confidence level (high/medium/low)
+- `recommendation` - Actionable recommendation
+- `provider` - AI provider used (openai/gemini)
+- `model` - AI model used
+- `full_data` - Complete JSON response for advanced automation
 
 ## Monitored Sensors
 
