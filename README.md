@@ -54,11 +54,22 @@ Once configured, the integration creates a sensor entity:
 
 ### Example Dashboard Card
 
+To display the full AI analysis, use the `full_analysis` attribute:
+
+```yaml
+type: markdown
+content: |
+  ## AI Energy Assistant
+  {{ state_attr('sensor.ai_energy_prediction', 'full_analysis') }}
+```
+
+Or use a template card:
+
 ```yaml
 type: custom:mushroom-template-card
 entity: sensor.ai_energy_prediction
 primary: AI Energy Assistant
-secondary: "{{ states('sensor.ai_energy_prediction') }}"
+secondary: "{{ state_attr('sensor.ai_energy_prediction', 'full_analysis') }}"
 icon: mdi:robot
 icon_color: purple
 multiline_secondary: true
