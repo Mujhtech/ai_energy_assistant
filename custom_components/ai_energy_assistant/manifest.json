@@ -1,0 +1,15 @@
+{
+    "domain": "ai_energy_assistant",
+    "name": "AI Energy Assistant",
+    "version": "1.0.0",
+    "documentation": "https://github.com/your-repo/ai_energy_assistant",
+    "requirements": [
+        "httpx>=0.24.0"
+    ],
+    "config_flow": true,
+    "iot_class": "cloud_polling",
+    "dependencies": [],
+    "codeowners": [
+        "@yourusername"
+    ]
+}
